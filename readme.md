@@ -5,13 +5,20 @@
 redis 的代码大都位于 src 目录下。
 
 ### 数据结构
-#### 结构体定义
+#### 常见结构体定义
+* [服务器定义 redisServer](./src/struct/redisServer.md)
+* [数据库定义 redisDb](./src/struct/redisDb.md)
+* [客户端定义 client](./src/struct/client.md)
+* [事件处理器定义 aeEventLoop](./src/struct/aeEventLoop.md)
+
 #### 基本数据类型
+* sds
+* list
+* dict
 
 ### 启动过程
 #### 服务端
-##### 入口文件
-入口文件位于 server.c 文件，main 函数。
+> 入口文件位于 server.c 文件，main 函数。
 
 ##### 生命周期
 整个生命周期可以概括为以下 4 个步骤。
