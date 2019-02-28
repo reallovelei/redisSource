@@ -1,26 +1,26 @@
-## Redis 源码分析
+# Redis 源码分析
 > 基于 4.0.2 版本
 
-### 目录结构
+## 目录结构
 redis 的代码大都位于 src 目录下。
 
-### 数据结构
-#### 常见结构体定义
-* [服务器定义 redisServer](./src/struct/redisServer.md)
-* [数据库定义 redisDb](./src/struct/redisDb.md)
-* [客户端定义 client](./src/struct/client.md)
-* [事件处理器定义 aeEventLoop](./src/struct/aeEventLoop.md)
+## 数据结构
+### 常见结构体定义
+* [服务器定义 redisServer](./src/struct/common/redisServer.md)
+* [数据库定义 redisDb](./src/struct/common/redisDb.md)
+* [客户端定义 client](./src/struct/common/client.md)
+* [事件处理器定义 aeEventLoop](./src/struct/common/aeEventLoop.md)
 
-#### 基本数据类型
-* sds
-* list
-* dict
+### 基本数据类型
+* [sds](./src/struct/basic/sds.md)
+* [list](./src/struct/basic/adlist.md)
+* [dict](./src/struct/basic/dict.md)
 
-### 启动过程
-#### 服务端
+## 启动过程
+### 服务端
 > 入口文件位于 server.c 文件，main 函数。
 
-##### 生命周期
+#### 生命周期
 整个生命周期可以概括为以下 4 个步骤。
 1. [初始化服务器配置](./src/server/初始化服务器配置.md)
 1. [加载配置文件](./src/server/读取配置文件.md)
@@ -54,8 +54,9 @@ int main(int argc, char **argv) {
 }
 ```
 
-#### 客户端
-##### 建立链接
-##### 一次完整的命令请求
+### 客户端
+#### 建立链接
+#### 一次完整的命令请求
 
-### 功能实现
+## 功能实现
+* 事件
