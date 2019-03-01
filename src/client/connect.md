@@ -7,12 +7,9 @@
 1. 初始化默认参数。
 1. 调用 `parseOptions` 函数解析传入参数（如 -h -p 等），结果保存在 config 变量中。
 1. 根据各种模式，执行对应的函数。
-    * 进入每一种模式，都会先执行 `cliConnect` 函数创建连接，再执行对应模式的函数。大多数情况下，执行完模式的函数都会调用 `exit` 退出。
-1. 如果没有进入任何模式，最后也会调用 `cliConnect` 建立连接。
-1. 最后会判断是否开启 eval 模式，如果是，执行对应的函数。
-
-### 创建连接
-> 客户端发起创建连接请求，调用的是 [cliConnect(#创建连接) 函数
+    * 进入每一种模式，都会先执行 [cliConnect](#创建连接) 函数创建连接，再执行对应模式的函数。大多数情况下，执行完模式的函数都会调用 `exit` 退出。
+1. 如果没有进入任何模式，最后也会调用 [cliConnect](#创建连接) 建立连接。
+1. 最后会判断是否开启 eval 模式，如果是，执行对应的函数，否则会调用 noninteractive 函数处理命令请求。
 
 ### 代码
 ##### 主函数
@@ -161,12 +158,14 @@ static int cliConnect(int force) {
             redisFree(context);
         }
 
+        // 判断连接类型，TCP 还是 UNIX 域
         if (config.hostsocket == NULL) {
             context = redisConnect(config.hostip,config.hostport);
         } else {
             context = redisConnectUnix(config.hostsocket);
         }
 
+        // 连接错误，打印错误信息
         if (context->err) {
             fprintf(stderr,"Could not connect to Redis at ");
             if (config.hostsocket == NULL)
