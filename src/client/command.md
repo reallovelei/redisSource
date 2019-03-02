@@ -1,8 +1,9 @@
 ## 一次请求的完整周期
-> 文件位于 src/redis-cli.c 中
 
-### 执行流程
-> 在客户端和服务器建立连接的时候，最后调用了 `noninteractive` 这个函数。
+### 客户端
+> 文件位于 src/redis-cli.c 中
+#### 执行流程
+> 客户端在和服务器建立连接的时候，最后调用了 `noninteractive` 这个函数。
 
 我们来看一下这个函数的定义。
 
@@ -34,7 +35,7 @@ static int noninteractive(int argc, char **argv) {
     * 调用 `redisAppendCommandArgv` 函数将参数追加到命令中，并按照 redis 的通信协议格式化命令。
     * 对 pub/sub 模式 和 主从模式做特殊处理。
     * 调用 `cliReadReply` 函数得到回复。
-        * 调用 `redisGetReply` 函数（位于 src/hiredis.c 中）
+        * 调用 `redisGetReply` 函数（位于 deps/hiredis/hiredis.c 中）
             * 调用 `redisGetReplyFromReader` 从 reader 中读取数据。
             * 调用 `redisBufferWrite` 向 buffer 中写入数据。
             * 调用 `redisBufferRead` 读取数据，当有读事件触发时，这个函数会从 socket 中不断读取数据。

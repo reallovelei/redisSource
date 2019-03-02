@@ -60,3 +60,5 @@ int main(int argc, char **argv) {
 
 ## 功能实现
 * [事件](./src/feature/event.md)
+* 集群
+* 日志
