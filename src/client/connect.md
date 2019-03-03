@@ -64,7 +64,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
 
 * 再看一下 `acceptCommonHandler` 函数（位于 src/networking.c 中）。
 简单概括一下执行的流程
-1. 调用 createClient 函数（src/networking.c 中）创建一个[客户端](../struct/common/client.md)。
+1. 调用 reateClient 函数（src/networking.c 中）创建一个[客户端](../struct/common/client.md)。
 1. 如果客户端的数量超过了最大客户端的限制，则拒绝连接。
 1. 如果是保护模式（默认）并且没有设置密码和监听 ip，只接受本地的连接请求。
 1. 设置客户端 flag。
