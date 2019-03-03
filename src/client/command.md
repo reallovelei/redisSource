@@ -1,5 +1,8 @@
 ## 一次请求的完整周期
 
+* [服务端](#服务端)
+* [客户端](#客户端)
+
 ### 服务端
 > 主要文件位于 src/networking 中
 主要可以分为这么几个阶段
@@ -272,13 +275,18 @@ void processInputBuffer(client *c) {
 * `slave-serve-stale-data`（slave 丢失连接时是否继续处理请求）如果设置为 no，则只允许 info 和 slaveof 命令。
 * 正在载入数据，只允许 CMD_LOADING 的命令。
 * Lua 脚本太慢？只允许特定的 lua 命令（原文：Lua script too slow? Only allow a limited number of commands）。
-* 执行命令（除 EXEC 、 DISCARD 、 MULTI 和 WATCH 命令之外，都放入事务队列 `queueMultiCommand`）。
+* 如果客户端开启了事务，则除 EXEC 、 DISCARD 、 MULTI 和 WATCH 命令之外，都放入事务队列 `queueMultiCommand`（位于 src/networking.c））。
+    * 之后调用 `addReply` 函数向客户端回复。
+    * `addReply` 函数中会调用 `prepareClientToWrite` 函数把客户端的写请求放入 `server.clients_pending_write` 链表。
+* 如果未开启事务，则调用 `call` 函数执行命令（事务模式下的 EXEC 、 DISCARD 、 MULTI 和 WATCH 也会走到这一步）。
+    * call 函数是 redis 执行命令的核心函数，后面会分析一下。
 
 总结一下
 * rename 危险的命令（如 flushdb 等，就是在这一步验证的）。
 * 设置了密码，也是在这一步验证的。
 * 集群模式下，如果多个 key 不在同一 slot，会返回 CLUSTER_REDIR_CROSS_SLOT 的错误。
-* 除 EXEC 、 DISCARD 、 MULTI 和 WATCH 命令，都是调用 `queueMultiCommand` 放入事务队列执行的。
+* 事务模式下，除 EXEC 、 DISCARD 、 MULTI 和 WATCH 命令，都是调用 `queueMultiCommand` 放入事务队列执行的。
+* 非事务模式，或者 EXEC 、 DISCARD 、 MULTI 和 WATCH，调用 `call` 函数执行命令。
 ```c
 /* If this function gets called we already read a whole
  * command, arguments are in the client argv/argc fields.
@@ -484,6 +492,165 @@ int processCommand(client *c) {
             handleClientsBlockedOnLists();
     }
     return C_OK;
+}
+```
+
+上面说到，非事务模式，或者 EXEC 、 DISCARD 、 MULTI 和 WATCH 这四个命令，会调用 call 函数执行。
+```c
+/* Call() is the core of Redis execution of a command.
+ *
+ * The following flags can be passed:
+ * CMD_CALL_NONE        No flags.
+ * CMD_CALL_SLOWLOG     Check command speed and log in the slow log if needed.
+ * CMD_CALL_STATS       Populate command stats.
+ * CMD_CALL_PROPAGATE_AOF   Append command to AOF if it modified the dataset
+ *                          or if the client flags are forcing propagation.
+ * CMD_CALL_PROPAGATE_REPL  Send command to salves if it modified the dataset
+ *                          or if the client flags are forcing propagation.
+ * CMD_CALL_PROPAGATE   Alias for PROPAGATE_AOF|PROPAGATE_REPL.
+ * CMD_CALL_FULL        Alias for SLOWLOG|STATS|PROPAGATE.
+ *
+ * The exact propagation behavior depends on the client flags.
+ * Specifically:
+ *
+ * 1. If the client flags CLIENT_FORCE_AOF or CLIENT_FORCE_REPL are set
+ *    and assuming the corresponding CMD_CALL_PROPAGATE_AOF/REPL is set
+ *    in the call flags, then the command is propagated even if the
+ *    dataset was not affected by the command.
+ * 2. If the client flags CLIENT_PREVENT_REPL_PROP or CLIENT_PREVENT_AOF_PROP
+ *    are set, the propagation into AOF or to slaves is not performed even
+ *    if the command modified the dataset.
+ *
+ * Note that regardless of the client flags, if CMD_CALL_PROPAGATE_AOF
+ * or CMD_CALL_PROPAGATE_REPL are not set, then respectively AOF or
+ * slaves propagation will never occur.
+ *
+ * Client flags are modified by the implementation of a given command
+ * using the following API:
+ *
+ * forceCommandPropagation(client *c, int flags);
+ * preventCommandPropagation(client *c);
+ * preventCommandAOF(client *c);
+ * preventCommandReplication(client *c);
+ *
+ */
+void call(client *c, int flags) {
+    long long dirty, start, duration;
+    int client_old_flags = c->flags;
+
+    /* Sent the command to clients in MONITOR mode, only if the commands are
+     * not generated from reading an AOF. */
+    // monitor 模式下，向客户端发送命令
+    if (listLength(server.monitors) &&
+        !server.loading &&
+        !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN)))
+    {
+        replicationFeedMonitors(c,server.monitors,c->db->id,c->argv,c->argc);
+    }
+
+    /* Initialization: clear the flags that must be set by the command on
+     * demand, and initialize the array for additional commands propagation. */
+    // 初始化
+    c->flags &= ~(CLIENT_FORCE_AOF|CLIENT_FORCE_REPL|CLIENT_PREVENT_PROP);
+    redisOpArray prev_also_propagate = server.also_propagate;
+    redisOpArrayInit(&server.also_propagate);
+
+    /* Call the command. */
+    // 调用命令
+    dirty = server.dirty;
+    start = ustime();
+    c->cmd->proc(c);
+    duration = ustime()-start;
+    dirty = server.dirty-dirty;
+    if (dirty < 0) dirty = 0;
+
+    /* When EVAL is called loading the AOF we don't want commands called
+     * from Lua to go into the slowlog or to populate statistics. */
+    if (server.loading && c->flags & CLIENT_LUA)
+        flags &= ~(CMD_CALL_SLOWLOG | CMD_CALL_STATS);
+
+    /* If the caller is Lua, we want to force the EVAL caller to propagate
+     * the script if the command flag or client flag are forcing the
+     * propagation. */
+    if (c->flags & CLIENT_LUA && server.lua_caller) {
+        if (c->flags & CLIENT_FORCE_REPL)
+            server.lua_caller->flags |= CLIENT_FORCE_REPL;
+        if (c->flags & CLIENT_FORCE_AOF)
+            server.lua_caller->flags |= CLIENT_FORCE_AOF;
+    }
+
+    /* Log the command into the Slow log if needed, and populate the
+     * per-command statistics that we show in INFO commandstats. */
+    if (flags & CMD_CALL_SLOWLOG && c->cmd->proc != execCommand) {
+        char *latency_event = (c->cmd->flags & CMD_FAST) ?
+                              "fast-command" : "command";
+        latencyAddSampleIfNeeded(latency_event,duration/1000);
+        slowlogPushEntryIfNeeded(c,c->argv,c->argc,duration);
+    }
+    if (flags & CMD_CALL_STATS) {
+        c->lastcmd->microseconds += duration;
+        c->lastcmd->calls++;
+    }
+
+    /* Propagate the command into the AOF and replication link */
+    if (flags & CMD_CALL_PROPAGATE &&
+        (c->flags & CLIENT_PREVENT_PROP) != CLIENT_PREVENT_PROP)
+    {
+        int propagate_flags = PROPAGATE_NONE;
+
+        /* Check if the command operated changes in the data set. If so
+         * set for replication / AOF propagation. */
+        if (dirty) propagate_flags |= (PROPAGATE_AOF|PROPAGATE_REPL);
+
+        /* If the client forced AOF / replication of the command, set
+         * the flags regardless of the command effects on the data set. */
+        if (c->flags & CLIENT_FORCE_REPL) propagate_flags |= PROPAGATE_REPL;
+        if (c->flags & CLIENT_FORCE_AOF) propagate_flags |= PROPAGATE_AOF;
+
+        /* However prevent AOF / replication propagation if the command
+         * implementatino called preventCommandPropagation() or similar,
+         * or if we don't have the call() flags to do so. */
+        if (c->flags & CLIENT_PREVENT_REPL_PROP ||
+            !(flags & CMD_CALL_PROPAGATE_REPL))
+                propagate_flags &= ~PROPAGATE_REPL;
+        if (c->flags & CLIENT_PREVENT_AOF_PROP ||
+            !(flags & CMD_CALL_PROPAGATE_AOF))
+                propagate_flags &= ~PROPAGATE_AOF;
+
+        /* Call propagate() only if at least one of AOF / replication
+         * propagation is needed. */
+        if (propagate_flags != PROPAGATE_NONE)
+            propagate(c->cmd,c->db->id,c->argv,c->argc,propagate_flags);
+    }
+
+    /* Restore the old replication flags, since call() can be executed
+     * recursively. */
+    c->flags &= ~(CLIENT_FORCE_AOF|CLIENT_FORCE_REPL|CLIENT_PREVENT_PROP);
+    c->flags |= client_old_flags &
+        (CLIENT_FORCE_AOF|CLIENT_FORCE_REPL|CLIENT_PREVENT_PROP);
+
+    /* Handle the alsoPropagate() API to handle commands that want to propagate
+     * multiple separated commands. Note that alsoPropagate() is not affected
+     * by CLIENT_PREVENT_PROP flag. */
+    if (server.also_propagate.numops) {
+        int j;
+        redisOp *rop;
+
+        if (flags & CMD_CALL_PROPAGATE) {
+            for (j = 0; j < server.also_propagate.numops; j++) {
+                rop = &server.also_propagate.ops[j];
+                int target = rop->target;
+                /* Whatever the command wish is, we honor the call() flags. */
+                if (!(flags&CMD_CALL_PROPAGATE_AOF)) target &= ~PROPAGATE_AOF;
+                if (!(flags&CMD_CALL_PROPAGATE_REPL)) target &= ~PROPAGATE_REPL;
+                if (target)
+                    propagate(rop->cmd,rop->dbid,rop->argv,rop->argc,target);
+            }
+        }
+        redisOpArrayFree(&server.also_propagate);
+    }
+    server.also_propagate = prev_also_propagate;
+    server.stat_numcommands++;
 }
 ```
 

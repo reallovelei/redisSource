@@ -17,7 +17,6 @@ redis 的代码大都位于 src 目录下。
 * [dict](./src/struct/basic/dict.md)
 
 ## 启动过程
-### 服务端
 > 入口文件位于 server.c 文件，main 函数。
 
 #### 生命周期
@@ -54,11 +53,9 @@ int main(int argc, char **argv) {
 }
 ```
 
-### 客户端
+## 功能实现
 * [建立链接](./src/client/connect.md)
 * [一次完整的命令请求](./src/client/command.md)
-
-## 功能实现
 * [事件](./src/feature/event.md)
 * 集群
 * 日志
