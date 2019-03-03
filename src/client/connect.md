@@ -32,10 +32,11 @@ for (j = 0; j < server.ipfd_count; j++) {
 }
 ```
 
-* 现在我们来看一下 `acceptTcpHandler` 这个函数做了什么（函数定义位于 src/networking.c 中）。
-概括一下主要做了两件事
-    * 用于 accept 来自客户端的连接请求。
-    * 为连接成功的客户端绑定命令处理事件。
+> 现在我们来看一下 `acceptTcpHandler` 这个函数做了什么（函数定义位于 src/networking.c 中）。
+
+* 用于 accept 来自客户端的连接请求。
+* 为连接成功的客户端绑定命令处理事件。
+
 ```c
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
@@ -62,8 +63,8 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
 }
 ```
 
-* 再看一下 `acceptCommonHandler` 函数（位于 src/networking.c 中）。
-简单概括一下执行的流程
+> 再看一下 `acceptCommonHandler` 函数（位于 src/networking.c 中）。
+
 1. 调用 reateClient 函数（src/networking.c 中）创建一个[客户端](../struct/common/client.md)。
 1. 如果客户端的数量超过了最大客户端的限制，则拒绝连接。
 1. 如果是保护模式（默认）并且没有设置密码和监听 ip，只接受本地的连接请求。
