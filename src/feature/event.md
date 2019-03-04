@@ -113,6 +113,7 @@ void aeMain(aeEventLoop *eventLoop) {
 <br>
 
 看一下 aeProcessEvents 函数定义（位于 src/ae.c 中）。
+
 概括一下执行流程
 * 判断是否有事件，如果没有任何事件处理，返回 0。
 * 如果当前已注册的事件描述符没有到达最大，**或**有不需要等待的时间事件，则进行。
@@ -236,5 +237,3 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
     return processed; /* return the number of processed file/time events */
 }
 ```
-
-### 常用操作

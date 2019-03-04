@@ -60,5 +60,6 @@ int main(int argc, char **argv) {
 * 集群
 * 日志
 
-## 配置文件参考
-* [配置文件参考](./src/conf.md)
+## 参考
+* [配置文件参考](./src/ref/conf.md)
+* [命令与对应函数](./src/ref/command.md)

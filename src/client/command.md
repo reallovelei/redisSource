@@ -496,6 +496,22 @@ int processCommand(client *c) {
 ```
 
 上面说到，非事务模式，或者 EXEC 、 DISCARD 、 MULTI 和 WATCH 这四个命令，会调用 call 函数执行。
+看一下 call 函数的主要流程
+
+* 如果命令不是来自读取 AOF 文件，发送命令到 monitor 模式下的客户端。
+* 初始化。
+* 调用 `c->cmd->proc(c)` 执行命令（processCommand 中 `c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);` 会过滤掉非法指令）。
+    * 在服务器初始化时，调用了一个 `populateCommandTable` 函数，将 redis 到命令和对应的处理函数关联到一起，这里的 proc 就是对应的处理函数（可以看一下 redisCommandTable 数组的定义）。
+* 设置 dirty 标记，用于事务。
+* 针对 Lua 调用者做特殊处理。
+* 将命令复制到 AOF 和 slave 节点。
+* 重置客户端的 flag 标记，因为 call 可能递归调用。
+* 更新命令的统计信息。
+
+总结一下
+    * 在服务器初始化阶段，会调用 `populateCommandTable` 函数，将 redis 命令和对应的处理函数关联，定义位于 src/server.c 中的 redisCommandTable 数组。
+    * 真正处理命令的是 redisCommandTable 数组中定义的函数。
+
 ```c
 /* Call() is the core of Redis execution of a command.
  *
@@ -540,7 +556,7 @@ void call(client *c, int flags) {
 
     /* Sent the command to clients in MONITOR mode, only if the commands are
      * not generated from reading an AOF. */
-    // monitor 模式下，向客户端发送命令
+    // 如果不是 AOF 读取到到命令，发送命令到 monitor 模式下到客户端
     if (listLength(server.monitors) &&
         !server.loading &&
         !(c->cmd->flags & (CMD_SKIP_MONITOR|CMD_ADMIN)))
@@ -561,6 +577,7 @@ void call(client *c, int flags) {
     start = ustime();
     c->cmd->proc(c);
     duration = ustime()-start;
+    // 设置 dirty 标记
     dirty = server.dirty-dirty;
     if (dirty < 0) dirty = 0;
 
@@ -593,6 +610,7 @@ void call(client *c, int flags) {
     }
 
     /* Propagate the command into the AOF and replication link */
+    // 将命令复制到 AOF 和从节点
     if (flags & CMD_CALL_PROPAGATE &&
         (c->flags & CLIENT_PREVENT_PROP) != CLIENT_PREVENT_PROP)
     {
@@ -625,6 +643,7 @@ void call(client *c, int flags) {
 
     /* Restore the old replication flags, since call() can be executed
      * recursively. */
+    // 重置客户端的 flag，call 可能被递归调用
     c->flags &= ~(CLIENT_FORCE_AOF|CLIENT_FORCE_REPL|CLIENT_PREVENT_PROP);
     c->flags |= client_old_flags &
         (CLIENT_FORCE_AOF|CLIENT_FORCE_REPL|CLIENT_PREVENT_PROP);
