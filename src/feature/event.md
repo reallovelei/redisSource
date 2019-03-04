@@ -68,19 +68,119 @@ typedef struct aeFileEvent {
 } aeFileEvent;
 ```
 
+##### 执行流程
+> 文件事件的定义中，定义了两个处理函数，一个读事件处理器，一个写事件处理器。
+* 具体的处理函数，要根据 `aeCreateFileEvent` 函数传入的参数而定。
+* 如 `aeCreateFileEvent(server.el, fd, AE_READABLE, readQueryFromClient, c)` 会为绑定一个读事件。
+
 #### 时间事件
 ##### 数据结构
 ```c
 /* Time event structure */
 typedef struct aeTimeEvent {
     long long id; /* time event identifier. （时间事件 id）*/
-    long when_sec; /* seconds （事件到达时间，）*/
-    long when_ms; /* milliseconds （事件到达时间）*/
+    long when_sec; /* seconds （事件到达时间，秒）*/
+    long when_ms; /* milliseconds （事件到达时间，毫秒）*/
     aeTimeProc *timeProc;   // 时间处理函数
     aeEventFinalizerProc *finalizerProc;    // 事件释放函数
     void *clientData;       // IO 多路复用私有数据
     struct aeTimeEvent *next;   //  指向下一个时间事件的指针
 } aeTimeEvent;
+```
+
+##### 执行流程
+> 时间事件的处理，是调用 src/ae.c 中的 processTimeEvents 函数执行的。
+
+我们概括一下 processTimeEvents 函数的执行过程
+* 判断当前时间，如果没有到达下一个事件执行时间，重置时间（作者认为提前处理事件要比延误处理更好）。
+* 更新最后一次处理事件的时间。
+* 遍历链表，执行到期的事件。
+    * 移除将要删除的事件。
+    * 跳过本次迭代自己创建的事件。
+    * 调用 timeProc 处理事件（这里的 timeProc 是根据创建事件时，传入的参数，目前看只有 serverCron）。
+
+```c
+/* Process time events */
+static int processTimeEvents(aeEventLoop *eventLoop) {
+    int processed = 0;
+    aeTimeEvent *te, *prev;
+    long long maxId;
+    time_t now = time(NULL);
+
+    /* If the system clock is moved to the future, and then set back to the
+     * right value, time events may be delayed in a random way. Often this
+     * means that scheduled operations will not be performed soon enough.
+     *
+     * Here we try to detect system clock skews, and force all the time
+     * events to be processed ASAP when this happens: the idea is that
+     * processing events earlier is less dangerous than delaying them
+     * indefinitely, and practice suggests it is. */
+    // 如果没有到达下一个事件执行时间，重置时间
+    if (now < eventLoop->lastTime) {
+        te = eventLoop->timeEventHead;
+        while(te) {
+            te->when_sec = 0;
+            te = te->next;
+        }
+    }
+    // 更新最后一次时间事件执行的时间
+    eventLoop->lastTime = now;
+
+    prev = NULL;
+    te = eventLoop->timeEventHead;
+    maxId = eventLoop->timeEventNextId-1;
+    // 遍历链表，执行到期的时间事件
+    while(te) {
+        long now_sec, now_ms;
+        long long id;
+
+        /* Remove events scheduled for deletion. */
+        // 移除将要被删除的事件
+        if (te->id == AE_DELETED_EVENT_ID) {
+            aeTimeEvent *next = te->next;
+            if (prev == NULL)
+                eventLoop->timeEventHead = te->next;
+            else
+                prev->next = te->next;
+            if (te->finalizerProc)
+                te->finalizerProc(eventLoop, te->clientData);
+            zfree(te);
+            te = next;
+            continue;
+        }
+
+        /* Make sure we don't process time events created by time events in
+         * this iteration. Note that this check is currently useless: we always
+         * add new timers on the head, however if we change the implementation
+         * detail, this check may be useful again: we keep it here for future
+         * defense. */
+        // 确保不会执行这次迭代中，自己创建的时间事件
+        if (te->id > maxId) {
+            te = te->next;
+            continue;
+        }
+
+        // 获取当前时间
+        aeGetTime(&now_sec, &now_ms);
+        if (now_sec > te->when_sec ||
+            (now_sec == te->when_sec && now_ms >= te->when_ms))
+        {
+            int retval;
+
+            id = te->id;
+            retval = te->timeProc(eventLoop, id, te->clientData);
+            processed++;
+            if (retval != AE_NOMORE) {
+                aeAddMillisecondsToNow(retval,&te->when_sec,&te->when_ms);
+            } else {
+                te->id = AE_DELETED_EVENT_ID;
+            }
+        }
+        prev = te;
+        te = te->next;
+    }
+    return processed;
+}
 ```
 
 ### 生命周期
