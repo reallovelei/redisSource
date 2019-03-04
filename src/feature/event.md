@@ -114,17 +114,17 @@ void aeMain(aeEventLoop *eventLoop) {
 * 看一下 aeProcessEvents 函数定义（位于 src/ae.c 中）。
 
 概括一下执行流程
-    * 判断是否有事件，如果没有任何事件处理，返回 0。
-    * 如果当前已注册的事件描述符没有到达最大，**或**有不需要等待的时间事件，则进行。
-        * 有时间事件且该事件不需要阻塞，则获取最近的时间事件，将到期时间保存在 timeval 结构中。
-        * 如果没有时间事件处理，则根据 AE_DONT_WAIT 设置是否阻塞（flags & AE_DONT_WAIT 为 0 则阻塞）。
-        * 调用多路复用 API 获取已就绪的文件事件（根据不同平台不同，可能是 ae_kaueue，ae_epoll 或其他）。
-        * 如果有 aftersleep 函数，则执行。
-        * 从就绪数组中获取事件。
-        * 如果有读事件，处理读事件（mask & AE_READABLE），处理完会将 rfired 置为 1。
-        * 如果有写事件，处理写事件（mask & AE_WRITABLE），处理写事件时，会判断 rfired，读写事件只能执行一个。
-        * 已处理事件数 +1。
-    * 处理时间事件。
+* 判断是否有事件，如果没有任何事件处理，返回 0。
+* 如果当前已注册的事件描述符没有到达最大，**或**有不需要等待的时间事件，则进行。
+    * 有时间事件且该事件不需要阻塞，则获取最近的时间事件，将到期时间保存在 timeval 结构中。
+    * 如果没有时间事件处理，则根据 AE_DONT_WAIT 设置是否阻塞（flags & AE_DONT_WAIT 为 0 则阻塞）。
+    * 调用多路复用 API 获取已就绪的文件事件（根据不同平台不同，可能是 ae_kaueue，ae_epoll 或其他）。
+    * 如果有 aftersleep 函数，则执行。
+    * 从就绪数组中获取事件。
+    * 如果有读事件，处理读事件（mask & AE_READABLE），处理完会将 rfired 置为 1。
+    * 如果有写事件，处理写事件（mask & AE_WRITABLE），处理写事件时，会判断 rfired，读写事件只能执行一个。
+    * 已处理事件数 +1。
+* 处理时间事件。
 
 ```c
 /* Process every pending time event, then every pending file event
