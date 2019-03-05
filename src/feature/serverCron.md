@@ -5,7 +5,7 @@
 ### 相关函数
 |函数名|说明|
 |---|---|
-|[serverCon](#serverCron)|时间事件主函数|
+|[serverCron](#serverCron)|时间事件主函数|
 |[clientsCron](../func/clientsCron.md)|客户端相关函数|
 |[databasesCron](../func/databasesCron.md)|数据库相关函数，用于主动清除过期 key，渐进式 rehash 等|
 |[freeClientsInAsyncFreeQueue](../func/freeClientsInAsyncFreeQueue.md)|关闭需要异步关闭的客户端|
