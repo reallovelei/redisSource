@@ -88,6 +88,9 @@ typedef struct aeTimeEvent {
 } aeTimeEvent;
 ```
 
+##### 执行函数
+* [serverCron](./serverCron.md)
+
 ##### 执行流程
 > 时间事件的处理，是调用 src/ae.c 中的 processTimeEvents 函数执行的。
 
@@ -97,7 +100,7 @@ typedef struct aeTimeEvent {
 * 遍历链表，执行到期的事件。
     * 移除将要删除的事件。
     * 跳过本次迭代自己创建的事件。
-    * 调用 timeProc 处理事件（这里的 timeProc 是根据创建事件时，传入的参数，目前看只有 serverCron）。
+    * 调用 timeProc 处理事件（这里的 timeProc 是根据创建事件时，传入的参数，目前看只有 [serverCron](./serverCron.md)）。
 
 ```c
 /* Process time events */
@@ -215,6 +218,7 @@ void aeMain(aeEventLoop *eventLoop) {
 看一下 aeProcessEvents 函数定义（位于 src/ae.c 中）。
 
 概括一下执行流程
+
 * 判断是否有事件，如果没有任何事件处理，返回 0。
 * 如果当前已注册的事件描述符没有到达最大，**或**有不需要等待的时间事件，则进行。
     * 有时间事件且该事件不需要阻塞，则获取最近的时间事件，将到期时间保存在 timeval 结构中。
