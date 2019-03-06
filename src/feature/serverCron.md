@@ -8,12 +8,13 @@
 |[serverCron](#serverCron)|时间事件主函数|
 |[clientsCron](../func/clientsCron.md)|客户端相关函数|
 |[databasesCron](../func/databasesCron.md)|数据库相关函数，用于主动清除过期 key，渐进式 rehash 等|
+|[rewriteAppendOnlyFileBackground](./replication.md#startBgsaveForReplication)|重写 AOF日志|
 |[freeClientsInAsyncFreeQueue](../func/freeClientsInAsyncFreeQueue.md)|关闭需要异步关闭的客户端|
-|[clientsArePaused]|清除客户端 paused 标记|
-|[replicationCron]|主从复制|
-|[clusterCron]|集群模式执行函数|
-|[sentinelTimer]|sentinel 模式执行函数|
-|[migrateCloseTimedoutSockets]||
+|[clientsArePaused](../func/clientsArePaused.md)|清除客户端 paused 标记|
+|[replicationCron](./replication.md)|主从复制|
+|[clusterCron](./cluster.md)|集群模式执行函数|
+|[sentinelTimer](./sentinel.md)|sentinel 模式执行函数|
+|migrateCloseTimedoutSockets||
 
 ### 执行流程
 

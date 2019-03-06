@@ -243,9 +243,9 @@ struct redisServer {
     int repl_diskless_sync_delay;   /* Delay to start a diskless repl BGSAVE. */
 
     /* Replication (slave) */
-    char *masterauth;               /* AUTH with this password with master */
-    char *masterhost;               /* Hostname of master */
-    int masterport;                 /* Port of master */
+    char *masterauth;               /* AUTH with this password with master （连接到 master 的密码）*/
+    char *masterhost;               /* Hostname of master （master 的 host）*/
+    int masterport;                 /* Port of master （master 的端口号）*/
     int repl_timeout;               /* Timeout after N seconds of master idle */
     client *master;     /* Client that is master for this slave */
     client *cached_master; /* Cached master to be reused for PSYNC. */

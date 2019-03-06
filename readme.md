@@ -57,9 +57,9 @@ int main(int argc, char **argv) {
 * [建立链接](./src/client/connect.md)
 * [一次完整的命令请求](./src/client/command.md)
 * [事件](./src/feature/event.md)
+* [主从复制](./src/feature/replication.md)
 * 集群
-* 日志
-* 过期
+* 过期策略
 
 ## 参考
 * [配置文件参考](./src/ref/conf.md)
