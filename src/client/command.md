@@ -54,7 +54,7 @@
 * 如果未开启事务，则调用 `call` 函数执行命令（事务模式下的 EXEC 、 DISCARD 、 MULTI 和 WATCH 也会走到这一步）。
     * call 函数是 redis 执行命令的核心函数，后面会分析一下。
 
-总结一下
+#### 总结
 * rename 危险的命令（如 flushdb 等，就是在这一步验证的）。
 * 设置了密码，也是在这一步验证的。
 * 集群模式下，如果多个 key 不在同一 slot，会返回 CLUSTER_REDIR_CROSS_SLOT 的错误。
