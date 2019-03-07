@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 * [一次完整的命令请求](./src/client/command.md)
 * [事件](./src/feature/event.md)
 * [主从复制](./src/feature/replication.md)
-* 集群
+* [集群](./src/feature/cluster.md)
 * 过期策略
 
 ## 参考

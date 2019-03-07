@@ -8,6 +8,7 @@
 #### 执行流程
 * 在服务器初始化的时候，initServer 函数中，服务器为每个客户端创建一个文件事件，用于 accept 来自客户端的请求。
 * 连接建立成功之后，会为客户端再创建一个文件事件，用于接收来自客户端的命令。
+
 ```c
 /* Create an event handler for accepting new connections in TCP and Unix
     * domain sockets. */

@@ -1,8 +1,9 @@
 ## 集群
 > 位于 src/cluster.c 中
 
-* 启动
-* 定时任务（clusterCron）
+* [启动](#启动)
+* [定时任务](#定时任务)
+* [命令执行](#命令执行)
 
 ### 常量定义
 ```c
@@ -43,9 +44,19 @@ server.cluster_announce_bus_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT;
 ```
 
 #### 初始化服务器
-初始化服务器的时候，会判断是否开启了集群模式，如果开启，则执行集群初始化，代码可以看[这里](../func/clusterInit.md)。
+初始化服务器的时候，会判断是否开启了集群模式，如果开启，则执行集群初始化，代码可以看[这里](../func/cluster/clusterInit.md)。
 ```c
 if (server.cluster_enabled) clusterInit();
 ```
 
-##### 执行流程
+#### 执行流程
+* 初始化集群配置。
+* 载入或者创建每个 node 的配置文件。
+* 为 cluster 创建一个文件事件 clusterAcceptHandler，用于 accept 连接请求。
+
+### 定时任务
+> 集群的定时任务，是通过 [clusterCron](../func/cluster/clusterCron.md) 函数执行的，这个函数每秒会执行 10 次（clusterCron 会在 serverCron 触发）。
+
+#### 执行流程
+
+### 命令执行
