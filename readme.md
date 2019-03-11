@@ -61,6 +61,7 @@ int main(int argc, char **argv) {
 * [主从复制](./src/feature/replication.md)
 * [集群](./src/feature/cluster.md)
 * [过期策略](./src/feature/expire.md)
+* [管道 pipeline](./src/feature/pipeline.md)
 
 ## 参考
 * [配置文件参考](./src/ref/conf.md)

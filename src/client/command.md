@@ -48,10 +48,10 @@
 * `slave-serve-stale-data`（slave 丢失连接时是否继续处理请求）如果设置为 no，则只允许 info 和 slaveof 命令。
 * 正在载入数据，只允许 CMD_LOADING 的命令。
 * Lua 脚本太慢？只允许特定的 lua 命令（原文：Lua script too slow? Only allow a limited number of commands）。
-* 如果客户端开启了事务，则除 EXEC 、 DISCARD 、 MULTI 和 WATCH 命令之外，都放入事务队列 `queueMultiCommand`（位于 src/networking.c））。
+* 如果客户端开启了事务，则除 EXEC、DISCARD、MULTI 和 WATCH 命令之外，都放入事务队列 `queueMultiCommand`（位于 src/networking.c））。
     * 之后调用 `addReply` 函数向客户端回复。
     * `addReply` 函数中会调用 `prepareClientToWrite` 函数把客户端的写请求放入 `server.clients_pending_write` 链表。
-* 如果未开启事务，则调用 `call` 函数执行命令（事务模式下的 EXEC 、 DISCARD 、 MULTI 和 WATCH 也会走到这一步）。
+* 如果未开启事务，则调用 [call](../func/server/call.md) 函数执行命令（事务模式下的 EXEC、DISCARD、MULTI 和 WATCH 也会走到这一步）。
     * call 函数是 redis 执行命令的核心函数，后面会分析一下。
 
 #### 总结

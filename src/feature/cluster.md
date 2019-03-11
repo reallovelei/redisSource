@@ -49,9 +49,21 @@ server.cluster_announce_bus_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT;
 if (server.cluster_enabled) clusterInit();
 ```
 
+* 集群文件 cluster.c 中，有一个全局变量 myself，用于指向自身节点。
+
 #### 执行流程
 * 初始化集群配置。
 * 载入或者创建每个 node 的配置文件。
+    * 这一步会先调用 [createClusterNode](../func/cluster/createClusterNode.md) 函数创建一个集群节点，之后调用 `clusterAddNode` 将节点加入到集群中。
+        ```c
+        int clusterAddNode(clusterNode *node) {
+            int retval;
+
+            retval = dictAdd(server.cluster->nodes,
+                    sdsnewlen(node->name,CLUSTER_NAMELEN), node);
+            return (retval == DICT_OK) ? C_OK : C_ERR;
+        }
+        ```
 * 为 cluster 创建一个文件事件 clusterAcceptHandler，用于 accept 连接请求。
 
 ### 定时任务
