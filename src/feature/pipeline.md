@@ -1,23 +1,6 @@
 ## 管道 pipeline
 
-管道其实并不是 redis 的特性，而是系统提供的一种减少网络请求次数的方式。通过将多个网络请求合并成一个，而提升 IO。
-
-在看 redis 命令执行的时候，可以发现，redis 在执行命令的时候，除了 `multi`, `watch`, `discard`, `exec` 四个命令之外，其他命令都会放入到队列中。
-```c
- /* Exec the command */
-if (c->flags & CLIENT_MULTI &&
-    c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
-    c->cmd->proc != multiCommand && c->cmd->proc != watchCommand)
-{
-    queueMultiCommand(c);
-    addReply(c,shared.queued);
-} else {
-    call(c,CMD_CALL_FULL);
-    c->woff = server.master_repl_offset;
-    if (listLength(server.ready_keys))
-        handleClientsBlockedOnLists();
-}
-```
+管道其实并不是 redis 的特性，而是系统提供的一种减少网络请求次数的方式。通过将多个网络请求合并成一个，而提升 I/O。
 
 以 php 为例，我们看一下 php 使用 pipeline 方式是怎么请求 redis 的。
 ```php
@@ -31,4 +14,20 @@ for($i= 0 ; $i< 10000 ; $i++) {
 $replies = $pipe->exec();
 ```
 
-可以看到，其实到 redis 这里，也是先开启一个 multi，然后将命令依次放入队列，调用 exec 时，将这一组命令通过一个网络请求放给服务端执行，从而减少了每个命令发送一次网络请求的请求次数。
+我们在 redis 服务端开启 monotor，查看一下接收到的命令
+```
+1552361503.506252 [0 127.0.0.1:46046] "SET" "key0" "0"
+1552361503.506263 [0 127.0.0.1:46046] "SET" "key1" "1"
+1552361503.506267 [0 127.0.0.1:46046] "SET" "key2" "2"
+1552361503.506269 [0 127.0.0.1:46046] "SET" "key3" "3"
+1552361503.506287 [0 127.0.0.1:46046] "SET" "key4" "4"
+1552361503.506288 [0 127.0.0.1:46046] "SET" "key5" "5"
+1552361503.506290 [0 127.0.0.1:46046] "SET" "key6" "6"
+1552361503.506292 [0 127.0.0.1:46046] "SET" "key7" "7"
+1552361503.506294 [0 127.0.0.1:46046] "SET" "key8" "8"
+1552361503.506295 [0 127.0.0.1:46046] "SET" "key9" "9"
+```
+
+可以发现，从 redis 服务器的角度来说，收到的命令和普通模式并没有什么区别。真正的区别在于 php 扩展在 pipeline 的模式下，是通过**一次网络请求**发送了 10 条命令，而非 pipeline 模式下，会通过 **10 次网络请求**来完成。
+
+> 当然，也不是开启了 pipeline 都是只用一次网络请求，还要根据缓冲区大小而定，pipeline 的目的是通过减少网络请求的方式来提高 I/O。
