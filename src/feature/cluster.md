@@ -43,32 +43,44 @@ server.cluster_announce_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_PORT;
 server.cluster_announce_bus_port = CONFIG_DEFAULT_CLUSTER_ANNOUNCE_BUS_PORT;
 ```
 
+其实，和集群相关的配置还不止上面这些，上面的只是在 server 中列出来的部分，还有一部分在 cluster 中列出的。
+相关定义可以看[这里](../struct/common/cluster.md)
+
 #### 初始化服务器
-初始化服务器的时候，会判断是否开启了集群模式，如果开启，则执行集群初始化，代码可以看[这里](../func/cluster/clusterInit.md)。
+初始化服务器的时候，会判断是否开启了集群模式，如果开启，则执行集群初始化。
 ```c
 if (server.cluster_enabled) clusterInit();
 ```
+代码可以看[这里](../func/cluster/clusterInit.md)。
 
-* 集群文件 cluster.c 中，有一个全局变量 myself，用于指向自身节点。
+##### 执行流程
+> 集群中有两个常用的数据结构
+> [clusterNode](../struct/common/cluster.md#集群节点定义) 类型的 myself，用于表示自身节点。
+> [clusterState](../struct/common/cluster.md#集群状态定义) 类型的 server.cluster，用于表示集群节点状态。
 
-#### 执行流程
 * 初始化集群配置。
+    * 在 clusterInit 函数中，首先创建了一个 clusterState 的对象，把它存在了 server.cluster 中。
+    * 之后会初始化集群节点，其实就是创建了一个字典对象。
 * 载入或者创建每个 node 的配置文件。
-    * 这一步会先调用 [createClusterNode](../func/cluster/createClusterNode.md) 函数创建一个集群节点，之后调用 `clusterAddNode` 将节点加入到集群中。
-        ```c
-        int clusterAddNode(clusterNode *node) {
-            int retval;
-
-            retval = dictAdd(server.cluster->nodes,
-                    sdsnewlen(node->name,CLUSTER_NAMELEN), node);
-            return (retval == DICT_OK) ? C_OK : C_ERR;
-        }
-        ```
-* 为 cluster 创建一个文件事件 clusterAcceptHandler，用于 accept 连接请求。
+    * 这一步会先调用 [createClusterNode](../func/cluster/createClusterNode.md) 函数创建一个集群节点，函数会返回一个 clusterNode 类型的数据
+    * 之后调用 `clusterAddNode` 将节点加入到 `server.cluster->nodes` 中。
+* 为 cluster 创建一个文件事件 clusterAcceptHandler（具体说应该是一个读事件），用于 accept 连接请求。
+* 调用 `raxNew()` 函数初始化（slot，slots_to_keys 是一个基数树）。
+* 设置 myself 的 port 和 cport。
+    * 如果 server.cluster_announce_port 存 `port =  server.cluster_announce_port`
+    * 如果 server.cluster_announce_bus_port 存在，`cport = server.cluster_announce_bus_port`
+* 调用 `resetManualFailover` 设置手动故障转移参数。
 
 ### 定时任务
 > 集群的定时任务，是通过 [clusterCron](../func/cluster/clusterCron.md) 函数执行的，这个函数每秒会执行 10 次（clusterCron 会在 serverCron 触发）。
 
 #### 执行流程
 
+* 向所有断开连接的节点和未连接的节点发送连接请求。
+* 每执行 10 次随机向一些节点发送 ping 请求。
+* 遍历所有节点，检查是否需要将某节点标记为下线。
+* 如果是从节点，且没有开启复制，在我们知道 master 的情况下，开启复制。
+* 更新集群状态。
+
 ### 命令执行
+> 集群的命令执行，和普通模式下，主要多了寻找节点的步骤
