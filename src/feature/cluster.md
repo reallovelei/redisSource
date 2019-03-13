@@ -3,6 +3,7 @@
 
 * [启动](#启动)
 * [定时任务](#定时任务)
+* [迁移](#迁移)
 * [命令执行](#命令执行)
 
 ### 常量定义
@@ -82,5 +83,45 @@ if (server.cluster_enabled) clusterInit();
 * 如果是从节点，且没有开启复制，在我们知道 master 的情况下，开启复制。
 * 更新集群状态。
 
+### 迁移
+
+
 ### 命令执行
-> 集群的命令执行，和普通模式下，主要多了寻找节点的步骤
+> 集群的命令执行，和普通模式下，主要多了寻找节点的步骤。
+
+在 server.c 文件的 [processCommand](../func/server/processCommand.md) 函数中，可以找到下面这段代码。
+```c
+/* If cluster is enabled perform the cluster redirection here.
+    * However we don't perform the redirection if:
+    * 1) The sender of this command is our master.
+    * 2) The command has no key arguments. */
+if (server.cluster_enabled &&
+    !(c->flags & CLIENT_MASTER) &&
+    !(c->flags & CLIENT_LUA &&
+        server.lua_caller->flags & CLIENT_MASTER) &&
+    !(c->cmd->getkeys_proc == NULL && c->cmd->firstkey == 0 &&
+        c->cmd->proc != execCommand))
+{
+    int hashslot;
+    int error_code;
+    clusterNode *n = getNodeByQuery(c,c->cmd,c->argv,c->argc,
+                                    &hashslot,&error_code);
+    if (n == NULL || n != server.cluster->myself) {
+        if (c->cmd->proc == execCommand) {
+            discardTransaction(c);
+        } else {
+            flagTransaction(c);
+        }
+        clusterRedirectClient(c,n,hashslot,error_code);
+        return C_OK;
+    }
+}
+```
+
+下面我们来分析一下集群模式下的执行逻辑。
+* 如果开启了集群模式，则执行下面逻辑。
+* 调用 [getNodeByQuery](../func/cluster/getNodeByQuery.md) 函数获取集群节点。
+* 如果没有获取到节点，或者获取到的节点不是本节点，判断当前命令是否是 exec。
+    * 如果是 exec 命令，放弃当前事务。
+    * 如果不是 exec 命令，标记当前数据为 dirty。
+* 调用 `clusterRedirectClient` 函数，返回一条 move 指令。
