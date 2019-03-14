@@ -1,12 +1,23 @@
 ## getNodeByQuery
-> 位于 src/cluster.c 文件
+> 位于 src/cluster.c 文件，函数返回一个节点。
 
 来看一下 getNodeByQuery 函数的执行流程
 * 判断传入的命令是否是 exec 命令。
     * 如果是 exec 命令，且客户端开启了 multi，返回当前节点 myself，没有开启 multi 则标记一下事务状态 `client->mstat`。
-* 检验是否所有的 key 都在一个相同的 slot 中，检验 key 的 hash 函数是用的 crc16。
+* 遍历所有 key（exec 命令会取事务中所有 key），检验是否所有的 key 都在一个相同的 slot 中，检验 key 的 hash 函数是用的 crc16。
+    * 判断 `clusterState->migrating_slots_to[slot]` 是否为 NULL, 不为 NULL 且当前是本节点的话, 将 `migrating_slot` 置为 1
+    * 判断 `clusterState->importing_slots_from[slot]` 是否为 NULL, 不为 NULL 的话, 将 `importing_slot` 置为 1
+    * 如果所有的 key 不属于同一个 slot，设置错误消息为 `CLUSTER_REDIR_CROSS_SLOT`，返回 NULL
+    * 如果有 slot 正在迁移或者导入, 并且 key 不在当前节点, 则 missing_keys++
 * 如果当前的 key 不在任意一个 slot 中，则当前节点处理，返回本节点。
 * 如果集群状态为不可用，不处理请求，将 error_code 置为 `CLUSTER_REDIR_DOWN_STATE` 并返回 NULL。
+* 如果当前 slot 正在迁移（`clusterState->migrating_slots_to[slot]`）或者正在导入（`clusterState->importing_slots_from[slot]`），且命令是 migrate，返回本节点。
+* 如果有 slot 正在迁移, 且存在 `missing_keys`, 则将错误信息置为 `CLUSTER_REDIR_ASK`, 并返回迁移的目标 slot。
+* 如果有 slot 正在进行导入，且收到的命令是 ASK，表示可以处理这条命令。
+    * 如果命令包含多个 key，且有 missing_keys，将错误信息置为 `CLUSTER_REDIR_UNSTABLE`，并返回 NULL。
+    * 只有一个 key，返回本节点 myself。
+* 如果当前节点是一个 readonly 节点，且 slot 是当前节点的一个 slave，直接返回当前节点。
+* slot 不在当前节点，且 error_code 不为空，将错误消息置为 `CLUSTER_REDIR_MOVED`, 返回目标节点。
 
 ```c
 /* Return the pointer to the cluster node that is able to serve the command.

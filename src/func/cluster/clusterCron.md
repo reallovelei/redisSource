@@ -19,7 +19,7 @@ void clusterCron(void) {
     static unsigned long long iteration = 0;
     mstime_t handshake_timeout;
 
-    iteration++; /* Number of times this function was called so far. ??????????*/
+    iteration++; /* Number of times this function was called so far. */
 
     /* We want to take myself->ip in sync with the cluster-announce-ip option.
      * The option can be set at runtime via CONFIG SET, so we periodically check
@@ -56,19 +56,15 @@ void clusterCron(void) {
     /* Check if we have disconnected nodes and re-establish the connection.
      * Also update a few stats while we are here, that can be used to make
      * better decisions in other part of the code. */
-    // ??????????????????
     di = dictGetSafeIterator(server.cluster->nodes);
     server.cluster->stats_pfail_nodes = 0;
-    // ??????
     while((de = dictNext(di)) != NULL) {
         clusterNode *node = dictGetVal(de);
 
         /* Not interested in reconnecting the link with myself or nodes
          * for which we have no address. */
-        // ???????????????
         if (node->flags & (CLUSTER_NODE_MYSELF|CLUSTER_NODE_NOADDR)) continue;
 
-        // ?????????
         if (node->flags & CLUSTER_NODE_PFAIL)
             server.cluster->stats_pfail_nodes++;
 

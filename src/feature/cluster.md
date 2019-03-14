@@ -1,5 +1,5 @@
 ## 集群
-> 位于 src/cluster.c 中
+> 位于 src/cluster.c 中，客户端通过在本地缓存一份槽位映射表，来实现快速定位目标节点。
 
 * [启动](#启动)
 * [定时任务](#定时任务)
@@ -84,7 +84,7 @@ if (server.cluster_enabled) clusterInit();
 * 更新集群状态。
 
 ### 迁移
-
+redis 迁移一般是使用工具 `redis-trib` 来完成，本质上是调用了 `migrate` 命令来执行的，`migrate` 命令对应的函数位于 `src/cluster.c` 中的 `migrateCommand`。
 
 ### 命令执行
 > 集群的命令执行，和普通模式下，主要多了寻找节点的步骤。
@@ -124,4 +124,4 @@ if (server.cluster_enabled &&
 * 如果没有获取到节点，或者获取到的节点不是本节点，判断当前命令是否是 exec。
     * 如果是 exec 命令，放弃当前事务。
     * 如果不是 exec 命令，标记当前数据为 dirty。
-* 调用 `clusterRedirectClient` 函数，返回一条 move 指令。
+    * 调用 `clusterRedirectClient` 函数，返回一条 move 指令。
