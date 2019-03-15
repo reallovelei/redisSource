@@ -53,6 +53,7 @@
     * `addReply` 函数中会调用 `prepareClientToWrite` 函数把客户端的写请求放入 `server.clients_pending_write` 链表。
 * 如果未开启事务，则调用 [call](../func/server/call.md) 函数执行命令（事务模式下的 EXEC、DISCARD、MULTI 和 WATCH 也会走到这一步）。
     * call 函数是 redis 执行命令的核心函数，后面会分析一下。
+    * 真正执行命令的函数, 是在 server.c 中 [redisCommandTable](../ref/command.md) 数组中定义的函数
 
 #### 总结
 * rename 危险的命令（如 flushdb 等，就是在这一步验证的）。
@@ -67,7 +68,7 @@
 * 如果命令不是来自读取 AOF 文件，发送命令到 monitor 模式下的客户端。
 * 初始化。
 * 调用 `c->cmd->proc(c)` 执行命令（processCommand 中 `c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);` 会过滤掉非法指令）。
-    * 在服务器初始化时，调用了一个 `populateCommandTable` 函数，将 redis 到命令和对应的处理函数关联到一起，这里的 proc 就是对应的处理函数（可以看一下 redisCommandTable 数组的定义）。
+    * 在服务器初始化时，调用了一个 `populateCommandTable` 函数，将 redis 到命令和对应的处理函数关联到一起，这里的 proc 就是对应的处理函数（可以看一下 [redisCommandTable](../ref/command.md) 数组的定义）。
 * 设置 dirty 标记，用于事务。
 * 针对 Lua 调用者做特殊处理。
 * 将命令复制到 AOF 和 slave 节点。
