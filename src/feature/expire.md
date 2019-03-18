@@ -18,7 +18,7 @@ redis 中的数据都保存在 [redisDb](../struct/common/redisDb.md) 这样的�
 在获取任意一个 key 的时候，都会调用一下 db.c 中的 `expireIfNeeded` 函数，来判断 key 是否过期，下面来简单说一下 expireIfNeeded 函数的执行流程。
 
 * 这个函数接收两个参数，一个是数据库的编号，一个是 key，返回 0 表示未过期，返回 1 表示过期。
-* 调用 `getExpire` 函数，在 [redisDb](../struct/common/redisDb.md) 的 expires 上，查找该 key 的过期时间，如果没有过期时间，返回 0。
+* 调用 `getExpire` 函数，在 [redisDb](../struct/common/redisDb.md) 的 expires 字典上，查找该 key 的过期时间，如果没有过期时间，返回 0。
 * 如果服务器正在载入 AOF 或 RDB 数据，返回 0，载入过程中不处理。
 * 判断当前时间和 key 的过期时间，如果未过期，返回 0。
 * `server.stat_expiredkeys++`，更新统计数据。
@@ -51,15 +51,17 @@ if (server.active_expire_enabled && server.masterhost == NULL) {
 1. 设置超时时间。
     * 默认为 `timelimit = 1000000*ACTIVE_EXPIRE_CYCLE_SLOW_TIME_PERC/server.hz/100;`
     * 如果是快速扫描，`timelimit = ACTIVE_EXPIRE_CYCLE_FAST_DURATION;`
-1. 遍历每个数据库（默认是 16 个），在`ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP/4`（默认是 5） 个 key 中查找过期的 key。
+1. 遍历每个数据库（默认是 16 个），开启一个 do while 循环，在 expires 字典中随机找出 `ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP`（默认是 20） 个 key。
     * 如果当前数据库中的 expires 字典为空，跳过当前循环。
     * 在 expires 中随机找出一个 key，如果没有过期，则跳过本次循环。
     * 调用 `activeExpireCycleTryExpire` 函数，尝试删除一个过期的 key，删除成功则 `expired++`。
     * 更新一些统计信息。
     * 如果超时，则终止循环。
+    * 如果过期的 key 数量大于 `ACTIVE_EXPIRE_CYCLE_LOOKUPS_PER_LOOP/4`，则继续循环，重复上面的步骤。
 
 ### 从库过期策略
 > 用于处理**可写**的 slave 的过期 key。通常来说，slave 不会处理 key 的过期，它们等待 master 同步 del 命令，但是可写的 slave 是一个例外，如果这个 key 是这个 slave 创建的，那么就需要一种方式来处理它。
+* **可写**从库过期的 key，是通过调用 `expireSlaveKeys` 函数来执行的。
 * 这个 slave 会定义一个字典 `slaveKeysWithExpire`，来记录这些过期的 key，这个字典会在 `rememberSlaveKeyWithExpire` 函数调用的时候创建，字典的 key 是键，value 是一个 64 位无符号整数。
 
 #### 执行流程
